@@ -1,0 +1,13 @@
+services:
+  wiretap:
+    build: .
+    ports:
+      - '3000:3000'
+    environment:
+      NUXT_WIREMOCK_BASE_URL: ${NUXT_WIREMOCK_BASE_URL:-http://host.docker.internal:8080}
+      NUXT_WIREMOCK_AUTH_TOKEN: ${NUXT_WIREMOCK_AUTH_TOKEN:-}
+      NUXT_WIREMOCK_USERNAME: ${NUXT_WIREMOCK_USERNAME:-}
+      NUXT_WIREMOCK_PASSWORD: ${NUXT_WIREMOCK_PASSWORD:-}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    restart: unless-stopped
