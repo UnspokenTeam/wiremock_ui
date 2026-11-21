@@ -6,22 +6,6 @@ export default defineNuxtConfig({
     enabled: false
   },
 
-  runtimeConfig: {
-    wiremockBaseUrl: 'http://localhost:8080',
-    wiremockAuthToken: '',
-    wiremockUsername: '',
-    wiremockPassword: ''
-  },
-
-  fonts: {
-    providers: {
-      google: false,
-      bunny: false,
-      fontshare: false,
-      fontsource: false
-    }
-  },
-
   css: ['~/assets/css/main.css'],
 
   ui: {
@@ -34,6 +18,14 @@ export default defineNuxtConfig({
     }
   },
 
+  runtimeConfig: {
+    wiremockBaseUrl: 'http://localhost:8080',
+    wiremockAuthToken: '',
+    wiremockUsername: '',
+    wiremockPassword: '',
+    historyDatabasePath: './.data/wiretap.sqlite'
+  },
+
   compatibilityDate: '2026-06-30',
 
   eslint: {
@@ -42,6 +34,15 @@ export default defineNuxtConfig({
         commaDangle: 'never',
         braceStyle: '1tbs'
       }
+    }
+  },
+
+  fonts: {
+    providers: {
+      google: false,
+      bunny: false,
+      fontshare: false,
+      fontsource: false
     }
   }
 })

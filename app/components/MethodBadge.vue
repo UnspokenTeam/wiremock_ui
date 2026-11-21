@@ -3,5 +3,8 @@ defineProps<{ method: string }>()
 </script>
 
 <template>
-  <span class="method-badge" :data-method="method">{{ method }}</span>
+  <span
+    class="method-badge"
+    :data-method="method"
+  >{{ method }}</span>
 </template>

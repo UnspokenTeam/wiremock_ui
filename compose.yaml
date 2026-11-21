@@ -10,4 +10,9 @@ services:
       NUXT_WIREMOCK_PASSWORD: ${NUXT_WIREMOCK_PASSWORD:-}
     extra_hosts:
       - 'host.docker.internal:host-gateway'
+    volumes:
+      - wiretap-history:/app/.data
     restart: unless-stopped
+
+volumes:
+  wiretap-history:

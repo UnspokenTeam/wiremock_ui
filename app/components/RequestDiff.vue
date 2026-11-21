@@ -2,13 +2,13 @@
 import type { LoggedRequest, StubMapping } from '#shared/types/wiremock'
 import { compareRequest, comparisonPatch } from '#shared/utils/comparison'
 
-const props = defineProps<{ mapping: StubMapping; request: LoggedRequest }>()
+const props = defineProps<{ mapping: StubMapping, request: LoggedRequest }>()
 const mode = ref('split')
 const changesOnly = ref(false)
 const blocks = computed(() => compareRequest(props.mapping, props.request))
 const visibleBlocks = computed(() =>
   changesOnly.value
-    ? blocks.value.filter((block) => block.changed)
+    ? blocks.value.filter(block => block.changed)
     : blocks.value
 )
 const totals = computed(() =>
@@ -47,22 +47,26 @@ function downloadPatch() {
   <div class="request-diff">
     <div class="diff-toolbar">
       <div class="diff-summary">
-        <UIcon name="i-lucide-git-compare-arrows" /><span
-          >{{ totals.changed }} changed
-          {{ totals.changed === 1 ? 'block' : 'blocks' }}</span
-        ><span class="added-text">+{{ totals.additions }}</span
-        ><span class="removed-text">−{{ totals.removals }}</span>
+        <UIcon name="i-lucide-git-compare-arrows" /><span>{{ totals.changed }} changed
+          {{ totals.changed === 1 ? 'block' : 'blocks' }}</span><span class="added-text">+{{ totals.additions }}</span><span class="removed-text">−{{ totals.removals }}</span>
       </div>
       <div class="diff-actions">
-        <UCheckbox v-model="changesOnly" label="Changes only" size="sm" />
-        <div class="segmented-control" aria-label="Diff layout">
+        <UCheckbox
+          v-model="changesOnly"
+          label="Changes only"
+          size="sm"
+        />
+        <div
+          class="segmented-control"
+          aria-label="Diff layout"
+        >
           <button
             :class="{ active: mode === 'split' }"
             :aria-pressed="mode === 'split'"
             @click="mode = 'split'"
           >
-            Split</button
-          ><button
+            Split
+          </button><button
             :class="{ active: mode === 'unified' }"
             :aria-pressed="mode === 'unified'"
             @click="mode = 'unified'"
@@ -86,14 +90,20 @@ function downloadPatch() {
       optional fields, and extra headers may differ on a matched request.
     </p>
     <div class="diff-legend">
-      <span><span class="legend-line expected" />Mock · expected</span
-      ><span><span class="legend-line received" />Request · received</span>
+      <span><span class="legend-line expected" />Mock · expected</span><span><span class="legend-line received" />Request · received</span>
     </div>
-    <div v-if="!visibleBlocks.length" class="small-empty">
+    <div
+      v-if="!visibleBlocks.length"
+      class="small-empty"
+    >
       <UIcon name="i-lucide-check-check" />
       <p>No text differences in this pair.</p>
     </div>
-    <section v-for="block in visibleBlocks" :key="block.id" class="diff-block">
+    <section
+      v-for="block in visibleBlocks"
+      :key="block.id"
+      class="diff-block"
+    >
       <button
         class="diff-block-heading"
         :aria-expanded="Boolean(expanded[block.id])"
@@ -107,22 +117,34 @@ function downloadPatch() {
           "
         />
         <span>{{ block.title }}</span>
-        <span v-if="block.changed" class="block-counts"
-          ><span class="added-text">+{{ block.additions }}</span
-          ><span class="removed-text">−{{ block.removals }}</span></span
-        >
-        <span v-else class="block-unchanged">{{
+        <span
+          v-if="block.changed"
+          class="block-counts"
+        ><span class="added-text">+{{ block.additions }}</span><span class="removed-text">−{{ block.removals }}</span></span>
+        <span
+          v-else
+          class="block-unchanged"
+        >{{
           block.actual ? 'Identical' : 'Empty'
         }}</span>
       </button>
-      <div v-if="expanded[block.id]" class="diff-block-content">
-        <p v-if="block.hint" class="block-hint">{{ block.hint }}</p>
-        <div v-if="!block.lines.length" class="empty-block">
+      <div
+        v-if="expanded[block.id]"
+      >
+        <p
+          v-if="block.hint"
+          class="block-hint"
+        >
+          {{ block.hint }}
+        </p>
+        <div
+          v-if="!block.lines.length"
+          class="empty-block"
+        >
           No constraint or received value
         </div>
         <div
           v-else-if="mode === 'split'"
-          class="split-diff"
           role="table"
           :aria-label="`${block.title} comparison`"
         >
@@ -139,8 +161,7 @@ function downloadPatch() {
             >
               <span class="line-number">{{ row.left?.oldLine }}</span><span
                 class="line-sign"
-                >{{ row.left?.kind === 'removed' ? '−' : ' ' }}</span
-              ><code>{{ row.left?.text ?? ' ' }}</code>
+              >{{ row.left?.kind === 'removed' ? '−' : ' ' }}</span><code>{{ row.left?.text ?? ' ' }}</code>
             </div>
             <div
               class="diff-cell"
@@ -149,14 +170,12 @@ function downloadPatch() {
             >
               <span class="line-number">{{ row.right?.newLine }}</span><span
                 class="line-sign"
-                >{{ row.right?.kind === 'added' ? '+' : ' ' }}</span
-              ><code>{{ row.right?.text ?? ' ' }}</code>
+              >{{ row.right?.kind === 'added' ? '+' : ' ' }}</span><code>{{ row.right?.text ?? ' ' }}</code>
             </div>
           </div>
         </div>
         <div
           v-else
-          class="unified-diff"
           role="table"
           :aria-label="`${block.title} unified comparison`"
         >
@@ -169,11 +188,9 @@ function downloadPatch() {
           >
             <span class="line-number">{{ line.oldLine }}</span><span
               class="line-number"
-              >{{ line.newLine }}</span
-            ><span class="line-sign">{{
+            >{{ line.newLine }}</span><span class="line-sign">{{
               line.kind === 'added' ? '+' : line.kind === 'removed' ? '−' : ' '
-            }}</span
-            ><code>{{ line.text }}</code>
+            }}</span><code>{{ line.text }}</code>
           </div>
         </div>
         <p

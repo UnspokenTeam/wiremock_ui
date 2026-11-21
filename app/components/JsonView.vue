@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { pretty } from '#shared/utils/comparison'
-const props = defineProps<{ value: unknown; label?: string }>()
+
+const props = defineProps<{ value: unknown, label?: string }>()
 const toast = useToast()
 async function copy() {
   try {

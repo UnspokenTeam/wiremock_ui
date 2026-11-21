@@ -8,11 +8,12 @@ COPY . .
 RUN pnpm exec nuxt prepare && pnpm run build
 
 FROM build AS integration-test
-CMD ["node", "--experimental-strip-types", "--test", "tests/integration/wiremock.test.ts"]
+CMD ["pnpm", "run", "test:integration"]
 
 FROM node:24-alpine AS runtime
 WORKDIR /app
-ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 NUXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 NUXT_TELEMETRY_DISABLED=1 NUXT_HISTORY_DATABASE_PATH=/app/.data/wiretap.sqlite
+RUN mkdir -p /app/.data && chown node:node /app/.data
 COPY --from=build --chown=node:node /app/.output ./.output
 USER node
 EXPOSE 3000
