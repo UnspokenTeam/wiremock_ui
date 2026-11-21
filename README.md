@@ -198,22 +198,45 @@ The multi-stage image runs as a non-root user, contains only Nuxt’s production
 output, listens on port 3000, and includes a health check at `/api/health`.
 The health endpoint checks the UI service independently of WireMock availability.
 
+`Dockerfile` builds the release application. `Dockerfile.test` builds the
+integration-test image with the application source, test sources, and
+dependencies. It prepares Nuxt's generated files and runs the app in development
+mode during tests, without producing a production bundle. Compose uses that
+same image for the app and the test runner. To build it directly:
+
+```sh
+docker build -f Dockerfile.test -t wiretap-integration:local .
+```
+
 ## GitHub Actions and registry
 
-[`.github/workflows/build.yml`](.github/workflows/build.yml) checks types, runs
-comparison/search tests, and builds and verifies the production image against a
-two real WireMock instances using Docker Compose. The same checks run locally
-and in CI, covering instance isolation, deleted mock history, journal removal,
-WireMock outages, and app container recreation with the history volume retained.
+[`.github/workflows/build.yml`](.github/workflows/build.yml) uses this flow:
 
-Pushes to `main`/`master`, `v*` tags, and manual runs also publish the multi-platform
-image (`linux/amd64`, `linux/arm64`) to **`ghcr.io/<owner>/<repository>`**, using the
-repository’s `GITHUB_TOKEN` with `packages: write`. No registry password secret is
-needed. Pull requests build without publishing or logging into the registry.
-Tags include the branch, commit SHA, `latest` on the default branch, and semantic
-version tags for releases. Repository/organization Actions policy must allow
-package publishing. There is no Git remote configured in the supplied checkout;
-the workflow will run after the project is pushed to your GitHub repository.
+1. **Verify (pull request):** build only the integration-test image. Use it for
+   lint, type checks, unit tests, and Docker Compose integration tests against
+   two real WireMock instances, including history and restart checks.
+2. **Build (after verify succeeds):** build the production image separately and
+   push it as
+   `ghcr.io/<owner>/<repository>:dev-pr-<number>`.
+3. **Merge into `main`/`master`:** find the merged PR, pull its development image,
+   retag it with the branch, full commit SHA (`sha-<sha>`), and `latest` on the
+   default branch, then push those tags. There is no application build in this job.
+4. **Version tag (`v1.2.3`):** pull the existing `sha-<sha>` image and push the
+   version aliases (`1.2.3`, `1.2`). Manual runs repeat promotion for the selected
+   merged commit.
+
+Publishing uses `GITHUB_TOKEN` with `packages: write`; no registry password
+secret is needed. Fork and Dependabot PRs run verification without publishing.
+Promotion requires an existing development image from a repository PR; a
+missing PR or image fails promotion rather than building another image. Use PRs
+for changes to the release branches. Repository/organization Actions policy
+must allow package publishing.
+
+The plain Docker pull/tag/push workflow publishes `linux/amd64` images. The
+Dockerfiles can also be built locally for the host's native architecture.
+Release and test builds have separate GitHub Actions cache scopes. Set
+`WIRETAP_TEST_IMAGE` to use a prebuilt integration image for both Compose
+services without rebuilding it.
 
 ## Verification
 
@@ -229,14 +252,14 @@ body rules, binary bodies, other request blocks, patch reconstruction, route
 search, match status independent of HTTP response codes, archive deduplication,
 deleted-state restoration, per-instance retention, and reopening a saved database.
 
-Run the full integration check with Docker Compose. This builds the production
-app and a test runner, starts two official **WireMock 3.13.2** containers, waits for
+Run the full integration check with Docker Compose. This builds one integration
+image for the app and test runner, starts two official **WireMock 3.13.2** containers, waits for
 the services to be healthy, and runs the tests over the Compose network. Only
 Docker is required on the host:
 
 ```sh
 docker compose -f compose.test.yaml up --build --wait wiremock wiremock-secondary wiretap
-docker compose -f compose.test.yaml run --build --rm tests
+docker compose -f compose.test.yaml run --rm tests
 bash tests/verify-history-restart.sh
 docker compose -f compose.test.yaml down --volumes --remove-orphans
 ```

@@ -53,7 +53,7 @@ trap '"${compose[@]}" up -d --wait wiremock >/dev/null 2>&1 || true' EXIT
 "${compose[@]}" stop wiremock
 verify_history true
 # Recreate the application container, rather than just reopening one DB handle.
-"${compose[@]}" up -d --no-deps --force-recreate --wait wiretap
+"${compose[@]}" up -d --no-deps --no-build --pull never --force-recreate --wait wiretap
 verify_history true
 "${compose[@]}" up -d --wait wiremock
 verify_history false

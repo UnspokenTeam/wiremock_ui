@@ -7,9 +7,6 @@ RUN pnpm install --frozen-lockfile --ignore-scripts
 COPY . .
 RUN pnpm exec nuxt prepare && pnpm run build
 
-FROM build AS integration-test
-CMD ["pnpm", "run", "test:integration"]
-
 FROM node:24-alpine AS runtime
 WORKDIR /app
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=3000 NUXT_TELEMETRY_DISABLED=1 NUXT_HISTORY_DATABASE_PATH=/app/.data/wiretap.sqlite
