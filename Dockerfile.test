@@ -4,7 +4,6 @@ ENV NUXT_TELEMETRY_DISABLED=1
 RUN npm install --global pnpm@12.15.0
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 RUN pnpm install --frozen-lockfile --ignore-scripts
-COPY shared ./shared
-COPY server/lib ./server/lib
-COPY tests ./tests
+COPY . .
+RUN pnpm exec nuxt prepare
 CMD ["pnpm", "run", "test:integration"]

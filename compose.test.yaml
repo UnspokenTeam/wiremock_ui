@@ -36,14 +36,16 @@ services:
       retries: 30
 
   wiretap:
-    image: ${WIRETAP_TEST_IMAGE:-wiretap-release:test}
+    image: ${WIRETAP_TEST_IMAGE:-wiretap-integration:test}
     build:
       context: .
-      target: runtime
+      dockerfile: Dockerfile.test
+    command: ['pnpm', 'dev', '--host', '0.0.0.0', '--port', '3000']
     ports:
       - '127.0.0.1:${WIRETAP_TEST_PORT:-3100}:3000'
     environment:
       NUXT_WIREMOCK_BASE_URL: http://wiremock:8080
+      __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: wiretap
     volumes:
       - wiretap-history:/app/.data
     depends_on:
@@ -61,7 +63,7 @@ services:
       retries: 30
 
   tests:
-    image: ${WIRETAP_TEST_RUNNER_IMAGE:-wiretap-tests:test}
+    image: ${WIRETAP_TEST_IMAGE:-wiretap-integration:test}
     build:
       context: .
       dockerfile: Dockerfile.test

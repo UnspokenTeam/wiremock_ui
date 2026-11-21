@@ -18,25 +18,51 @@ jobs:
   verify:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
     env:
-      WIRETAP_TEST_IMAGE: wiretap-release:ci
-      WIRETAP_TEST_RUNNER_IMAGE: wiretap-tests:ci
+      WIRETAP_TEST_IMAGE: wiretap-integration:ci
     steps:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the integration-test image
+        uses: docker/build-push-action@v7
         with:
-          node-version: 24
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm run lint
-      - run: pnpm run typecheck
-      - run: pnpm test
+          context: .
+          file: Dockerfile.test
+          load: true
+          tags: wiretap-integration:ci
+          cache-from: type=gha,scope=wiretap-tests
+          cache-to: type=gha,mode=max,scope=wiretap-tests
+      - name: Lint, type-check, and run unit tests
+        run: |
+          docker run --rm wiretap-integration:ci pnpm run lint
+          docker run --rm wiretap-integration:ci pnpm run typecheck
+          docker run --rm wiretap-integration:ci pnpm test
+      - name: Run integration tests with real WireMock
+        run: |
+          docker compose -f compose.test.yaml pull wiremock wiremock-secondary
+          docker compose -f compose.test.yaml up --no-build --pull never --wait wiremock wiremock-secondary wiretap
+          docker compose -f compose.test.yaml run --rm --no-deps --pull never tests
+          bash tests/verify-history-restart.sh
+      - name: Test service logs
+        if: failure()
+        run: docker compose -f compose.test.yaml logs --no-color
+      - name: Remove integration stack
+        if: always()
+        run: docker compose -f compose.test.yaml down --volumes --remove-orphans
+
+  build:
+    needs: verify
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: docker/setup-buildx-action@v4
       - name: Build the release image
         uses: docker/build-push-action@v7
@@ -51,27 +77,6 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha,scope=wiretap-release
           cache-to: type=gha,mode=max,scope=wiretap-release
-      - name: Build the separate test runner
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          file: Dockerfile.test
-          load: true
-          tags: wiretap-tests:ci
-          cache-from: type=gha,scope=wiretap-tests
-          cache-to: type=gha,mode=max,scope=wiretap-tests
-      - name: Verify the release image with real WireMock
-        run: |
-          docker compose -f compose.test.yaml pull wiremock wiremock-secondary
-          docker compose -f compose.test.yaml up --no-build --pull never --wait wiremock wiremock-secondary wiretap
-          docker compose -f compose.test.yaml run --rm --no-deps --pull never tests
-          bash tests/verify-history-restart.sh
-      - name: Test service logs
-        if: failure()
-        run: docker compose -f compose.test.yaml logs --no-color
-      - name: Remove integration stack
-        if: always()
-        run: docker compose -f compose.test.yaml down --volumes --remove-orphans
       - name: Sign in to GitHub Container Registry
         if: >-
           success() && github.event.pull_request.head.repo.full_name == github.repository &&
