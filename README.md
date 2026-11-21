@@ -198,22 +198,42 @@ The multi-stage image runs as a non-root user, contains only Nuxt’s production
 output, listens on port 3000, and includes a health check at `/api/health`.
 The health endpoint checks the UI service independently of WireMock availability.
 
+`Dockerfile` builds the release application. `Dockerfile.test` builds a separate
+test runner with the test sources and dependencies; it does not build Nuxt or
+inherit the release build. To build the runner directly:
+
+```sh
+docker build -f Dockerfile.test -t wiretap-tests:local .
+```
+
 ## GitHub Actions and registry
 
-[`.github/workflows/build.yml`](.github/workflows/build.yml) checks types, runs
-comparison/search tests, and builds and verifies the production image against a
-two real WireMock instances using Docker Compose. The same checks run locally
-and in CI, covering instance isolation, deleted mock history, journal removal,
-WireMock outages, and app container recreation with the history volume retained.
+[`.github/workflows/build.yml`](.github/workflows/build.yml) uses this flow:
 
-Pushes to `main`/`master`, `v*` tags, and manual runs also publish the multi-platform
-image (`linux/amd64`, `linux/arm64`) to **`ghcr.io/<owner>/<repository>`**, using the
-repository’s `GITHUB_TOKEN` with `packages: write`. No registry password secret is
-needed. Pull requests build without publishing or logging into the registry.
-Tags include the branch, commit SHA, `latest` on the default branch, and semantic
-version tags for releases. Repository/organization Actions policy must allow
-package publishing. There is no Git remote configured in the supplied checkout;
-the workflow will run after the project is pushed to your GitHub repository.
+1. **Pull request:** lint, type-check, run unit tests, and build the release image
+   once. Build the independent test runner, then use Docker Compose to test the
+   release image against two real WireMock instances, including history and
+   restart checks. Push the tested image as
+   `ghcr.io/<owner>/<repository>:dev-pr-<number>`.
+2. **Merge into `main`/`master`:** find the merged PR, pull its development image,
+   retag it with the branch, full commit SHA (`sha-<sha>`), and `latest` on the
+   default branch, then push those tags. There is no application build in this job.
+3. **Version tag (`v1.2.3`):** pull the existing `sha-<sha>` image and push the
+   version aliases (`1.2.3`, `1.2`). Manual runs repeat promotion for the selected
+   merged commit.
+
+Publishing uses `GITHUB_TOKEN` with `packages: write`; no registry password
+secret is needed. Fork and Dependabot PRs run verification without publishing.
+Promotion requires an existing development image from a repository PR; a
+missing PR or image fails promotion rather than building another image. Use PRs
+for changes to the release branches. Repository/organization Actions policy
+must allow package publishing.
+
+The plain Docker pull/tag/push workflow publishes `linux/amd64` images. The
+Dockerfiles can also be built locally for the host's native architecture.
+Release and test builds have separate GitHub Actions cache scopes. Compose
+accepts `WIRETAP_TEST_IMAGE` and `WIRETAP_TEST_RUNNER_IMAGE` to test already-built
+images without rebuilding them.
 
 ## Verification
 

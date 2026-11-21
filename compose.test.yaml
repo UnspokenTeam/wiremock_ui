@@ -36,6 +36,7 @@ services:
       retries: 30
 
   wiretap:
+    image: ${WIRETAP_TEST_IMAGE:-wiretap-release:test}
     build:
       context: .
       target: runtime
@@ -60,9 +61,10 @@ services:
       retries: 30
 
   tests:
+    image: ${WIRETAP_TEST_RUNNER_IMAGE:-wiretap-tests:test}
     build:
       context: .
-      target: integration-test
+      dockerfile: Dockerfile.test
     environment:
       WIRETAP_TEST_URL: http://wiretap:3000
       WIREMOCK_TEST_URL: http://wiremock:8080

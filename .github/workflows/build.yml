@@ -16,9 +16,18 @@ concurrency:
 
 jobs:
   verify:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    env:
+      WIRETAP_TEST_IMAGE: wiretap-release:ci
+      WIRETAP_TEST_RUNNER_IMAGE: wiretap-tests:ci
     steps:
       - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         with:
@@ -28,10 +37,34 @@ jobs:
       - run: pnpm run lint
       - run: pnpm run typecheck
       - run: pnpm test
-      - name: Build and verify with real WireMock using Docker Compose
+      - uses: docker/setup-buildx-action@v4
+      - name: Build the release image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile
+          platforms: linux/amd64
+          load: true
+          tags: wiretap-release:ci
+          labels: |
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+          cache-from: type=gha,scope=wiretap-release
+          cache-to: type=gha,mode=max,scope=wiretap-release
+      - name: Build the separate test runner
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: Dockerfile.test
+          load: true
+          tags: wiretap-tests:ci
+          cache-from: type=gha,scope=wiretap-tests
+          cache-to: type=gha,mode=max,scope=wiretap-tests
+      - name: Verify the release image with real WireMock
         run: |
-          docker compose -f compose.test.yaml up --build --wait wiremock wiremock-secondary wiretap
-          docker compose -f compose.test.yaml run --build --rm tests
+          docker compose -f compose.test.yaml pull wiremock wiremock-secondary
+          docker compose -f compose.test.yaml up --no-build --pull never --wait wiremock wiremock-secondary wiretap
+          docker compose -f compose.test.yaml run --rm --no-deps --pull never tests
           bash tests/verify-history-restart.sh
       - name: Test service logs
         if: failure()
@@ -39,43 +72,75 @@ jobs:
       - name: Remove integration stack
         if: always()
         run: docker compose -f compose.test.yaml down --volumes --remove-orphans
-
-  image:
-    needs: verify
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v7
-      - uses: docker/setup-qemu-action@v4
-      - uses: docker/setup-buildx-action@v4
       - name: Sign in to GitHub Container Registry
-        if: github.event_name != 'pull_request'
+        if: >-
+          success() && github.event.pull_request.head.repo.full_name == github.repository &&
+          github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Image metadata
+      - name: Push the tested PR image
+        if: >-
+          success() && github.event.pull_request.head.repo.full_name == github.repository &&
+          github.actor != 'dependabot[bot]' && github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          PR_NUMBER: ${{ github.event.number }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}:dev-pr-$PR_NUMBER"
+          docker tag wiretap-release:ci "$image"
+          docker push "$image"
+
+  promote:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Select the previously built image
+        id: source
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          if [ "$GITHUB_REF_TYPE" = tag ]; then
+            echo "ref=$image:sha-$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          else
+            pr=$(gh api "repos/$GITHUB_REPOSITORY/commits/$GITHUB_SHA/pulls" --jq 'map(select(.merged_at != null)) | .[0].number')
+            if [[ ! "$pr" =~ ^[0-9]+$ ]]; then
+              echo '::error::No merged PR found. Merge a PR with a published dev image before promoting.'
+              exit 1
+            fi
+            echo "ref=$image:dev-pr-$pr" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Sign in to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Release tags
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ghcr.io/${{ github.repository }}
+          images: ${{ steps.source.outputs.image }}
+          flavor: latest=false
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=ref,event=branch
-            type=ref,event=pr
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            type=sha
-      - name: Build and publish image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          platforms: linux/amd64,linux/arm64
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            type=sha,format=long
+      - name: Pull, retag, and push
+        env:
+          SOURCE_IMAGE: ${{ steps.source.outputs.ref }}
+          RELEASE_TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          docker pull "$SOURCE_IMAGE"
+          while IFS= read -r tag; do
+            docker tag "$SOURCE_IMAGE" "$tag"
+            docker push "$tag"
+          done <<< "$RELEASE_TAGS"

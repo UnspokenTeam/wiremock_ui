@@ -1,0 +1,10 @@
+FROM node:24-alpine
+WORKDIR /app
+ENV NUXT_TELEMETRY_DISABLED=1
+RUN npm install --global pnpm@12.15.0
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+RUN pnpm install --frozen-lockfile --ignore-scripts
+COPY shared ./shared
+COPY server/lib ./server/lib
+COPY tests ./tests
+CMD ["pnpm", "run", "test:integration"]
