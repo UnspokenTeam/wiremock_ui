@@ -1,4 +1,8 @@
 node_modules
+.pnpm-store
+.agents
+.codex
+skills-lock.json
 .nuxt
 .output
 .data

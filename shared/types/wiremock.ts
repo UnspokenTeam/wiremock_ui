@@ -16,7 +16,7 @@ export interface RequestPattern {
   formParameters?: Record<string, Matcher>
   bodyPatterns?: Matcher[]
   multipartPatterns?: Matcher[]
-  basicAuthCredentials?: { username: string; password: string }
+  basicAuthCredentials?: { username: string, password: string }
   [key: string]: unknown
 }
 
@@ -59,7 +59,7 @@ export interface ServeEvent {
     fromConfiguredStub?: boolean
   }
   response?: Record<string, unknown> & { status?: number }
-  timing?: { totalTime?: number; processTime?: number }
+  timing?: { totalTime?: number, processTime?: number }
   [key: string]: unknown
 }
 
@@ -76,4 +76,22 @@ export interface Workspace {
   requestJournalDisabled: boolean
   baseUrl: string
   fetchedAt: string
+  history?: WorkspaceHistory
+}
+
+export interface MappingHistory {
+  firstSeenAt: string
+  lastSeenAt: string
+  deletedAt: string | null
+}
+
+export interface WorkspaceHistory {
+  connected: boolean
+  connectionError?: string
+  lastSyncedAt: string | null
+  matchedCount: number
+  unmatchedCount: number
+  activeMockCount: number
+  deletedMockCount: number
+  mappingStates: Record<string, MappingHistory>
 }

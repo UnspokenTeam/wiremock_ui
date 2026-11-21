@@ -6,27 +6,27 @@ import type {
 
 export function routeUrl(pattern: RequestPattern): string {
   return (
-    pattern.url ??
-    pattern.urlPath ??
-    pattern.urlPathTemplate ??
-    pattern.urlPattern ??
-    pattern.urlPathPattern ??
-    '(any URL)'
+    pattern.url
+    ?? pattern.urlPath
+    ?? pattern.urlPathTemplate
+    ?? pattern.urlPattern
+    ?? pattern.urlPathPattern
+    ?? '(any URL)'
   )
 }
 
 export function mappingName(mapping: StubMapping): string {
   return (
-    mapping.name ||
-    `${mapping.request.method || 'ANY'} ${routeUrl(mapping.request)}`
+    mapping.name
+    || `${mapping.request.method || 'ANY'} ${routeUrl(mapping.request)}`
   )
 }
 
 export function isMatched(event: ServeEvent): boolean {
   return (
-    event.wasMatched ??
-    event.responseDefinition?.fromConfiguredStub ??
-    Boolean(event.stubMapping && !event.stubMapping.isDefault)
+    event.wasMatched
+    ?? event.responseDefinition?.fromConfiguredStub
+    ?? Boolean(event.stubMapping && !event.stubMapping.isDefault)
   )
 }
 
@@ -59,6 +59,6 @@ export function searchMappings(
     ]
       .join(' ')
       .toLowerCase()
-    return terms.every((term) => text.includes(term))
+    return terms.every(term => text.includes(term))
   })
 }

@@ -82,14 +82,14 @@ test(
       assert.equal(response.status, 200)
       assert.match(response.headers.get('cache-control') ?? '', /no-store/)
       const workspace = (await response.json()) as Workspace
-      assert.ok(workspace.mappings.some((item) => item.id === id))
-      const events = workspace.requests.filter((event) =>
+      assert.ok(workspace.mappings.some(item => item.id === id))
+      const events = workspace.requests.filter(event =>
         event.request.url.startsWith(path)
       )
-      eventIds = events.map((event) => event.id)
+      eventIds = events.map(event => event.id)
       assert.equal(events.length, 2)
-      const matched = events.find((event) => event.wasMatched)!
-      const unmatched = events.find((event) => !event.wasMatched)!
+      const matched = events.find(event => event.wasMatched)!
+      const unmatched = events.find(event => !event.wasMatched)!
       assert.ok(matched)
       assert.equal(matched.responseDefinition?.status, 404)
       assert.equal(matched.stubMapping?.id, id)
@@ -105,12 +105,12 @@ test(
           workspace.mappings,
           'Wiretap integration fixture',
           'POST'
-        ).some((item) => item.id === id)
+        ).some(item => item.id === id)
       )
       const matchedBlocks = compareRequest(mapping, matched.request)
       for (const blockId of ['method', 'query', 'path', 'body']) {
         assert.equal(
-          matchedBlocks.find((block) => block.id === blockId)!.changed,
+          matchedBlocks.find(block => block.id === blockId)!.changed,
           false,
           `Matched ${blockId} block`
         )
@@ -118,18 +118,18 @@ test(
       const unmatchedBlocks = compareRequest(mapping, unmatched.request)
       for (const blockId of ['headers', 'query', 'path', 'body']) {
         assert.equal(
-          unmatchedBlocks.find((block) => block.id === blockId)!.changed,
+          unmatchedBlocks.find(block => block.id === blockId)!.changed,
           true,
           `Unmatched ${blockId} block`
         )
       }
       assert.equal(
-        JSON.parse(unmatchedBlocks.find((block) => block.id === 'body')!.actual)
+        JSON.parse(unmatchedBlocks.find(block => block.id === 'body')!.actual)
           .quantity,
         1
       )
       assert.equal(
-        JSON.parse(unmatchedBlocks.find((block) => block.id === 'path')!.actual)
+        JSON.parse(unmatchedBlocks.find(block => block.id === 'path')!.actual)
           .orderId,
         'ord_2'
       )
@@ -140,7 +140,7 @@ test(
       })
       assert.equal(nearResponse.status, 200)
       const near = (await nearResponse.json()) as { nearMisses: NearMiss[] }
-      assert.ok(near.nearMisses.some((miss) => miss.stubMapping.id === id))
+      assert.ok(near.nearMisses.some(miss => miss.stubMapping.id === id))
       const invalid = await fetch(`${app}/api/near-misses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -152,7 +152,7 @@ test(
     } finally {
       await fetch(`${wiremock}/__admin/mappings/${id}`, { method: 'DELETE' })
       await Promise.all(
-        eventIds.map((eventId) =>
+        eventIds.map(eventId =>
           fetch(`${wiremock}/__admin/requests/${eventId}`, {
             method: 'DELETE'
           })

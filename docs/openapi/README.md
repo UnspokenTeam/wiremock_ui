@@ -14,5 +14,8 @@ running server; the UI preserves additional matcher fields in â€œOther matchersâ
 
 The app uses `GET /__admin/mappings`, `GET /__admin/requests`,
 `GET /__admin/requests/{requestId}`, and `POST /__admin/near-misses/request`.
-The last operation is a read-only similarity query. The UI does not change
-stub mappings, replay requests, or clear the journal.
+The last operation is a read-only similarity query. Mock management also uses
+`POST /__admin/mappings`, `PUT /__admin/mappings/{stubMappingId}`, and
+`DELETE /__admin/mappings/{stubMappingId}`. Updates read the saved mapping back
+with `GET /__admin/mappings/{stubMappingId}`. Runtime instance selection applies
+to all these operations. The UI does not replay requests or clear the journal.

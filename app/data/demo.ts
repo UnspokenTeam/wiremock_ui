@@ -141,7 +141,7 @@ export function demoWorkspace(): Workspace {
           ...(body ? { 'Content-Type': 'application/json' } : {}),
           ...(i === 0 ? { 'X-API-Version': '2026-10' } : {}),
           'X-Request-Id': `req_${['a8f291', 'b7c310', 'c9d423', 'd2e551'][i % 4]}`,
-          Accept: 'application/json'
+          'Accept': 'application/json'
         },
         body: body ?? '',
         cookies: {},

@@ -29,10 +29,10 @@ test('normalizes header case and single-value arrays while retaining extra heade
   const header = compare(
     { headers: { 'Content-Type': { equalTo: 'application/json' } } },
     { headers: { 'content-type': ['application/json'] } }
-  ).find((block) => block.id === 'headers')!
+  ).find(block => block.id === 'headers')!
   assert.equal(header.changed, false)
   const extra = compare({}, { headers: { 'X-Trace': 'abc' } }).find(
-    (block) => block.id === 'headers'
+    block => block.id === 'headers'
   )!
   assert.match(extra.actual, /x-trace/)
   assert.equal(extra.expected, '')
@@ -47,7 +47,7 @@ test('compares decoded query values, duplicates, blanks, and missing keys', () =
       }
     },
     { url: '/orders?q=hello+world&tag=a&tag=b&empty=' }
-  ).find((block) => block.id === 'query')!
+  ).find(block => block.id === 'query')!
   assert.deepEqual(JSON.parse(query.actual), {
     empty: '',
     q: 'hello world',
@@ -74,7 +74,7 @@ test('extracts path parameters using the selected mock, escaping literal regex c
   const path = compare({
     urlPathTemplate: '/orders/{id}',
     pathParameters: { id: { equalTo: 'abc' } }
-  }).find((block) => block.id === 'path')!
+  }).find(block => block.id === 'path')!
   assert.equal(path.changed, false)
 })
 
@@ -86,18 +86,18 @@ test('JSON body equality sorts object keys, preserves array order, and exposes m
       ]
     },
     { body: '{"a":[1,2],"b":2}' }
-  ).find((block) => block.id === 'body')!
+  ).find(block => block.id === 'body')!
   assert.equal(body.changed, false)
   assert.match(body.hint, /ignoreExtraElements/)
   const changed = compare(
     { bodyPatterns: [{ equalToJson: { a: [1, 2] } }] },
     { body: '{"a":[2,1]}' }
-  ).find((block) => block.id === 'body')!
+  ).find(block => block.id === 'body')!
   assert.equal(changed.changed, true)
   const nullBody = compare(
     { bodyPatterns: [{ equalToJson: 'null' }] },
     { body: 'null' }
-  ).find((block) => block.id === 'body')!
+  ).find(block => block.id === 'body')!
   assert.equal(nullBody.expected, 'null')
 })
 
@@ -111,15 +111,15 @@ test('keeps regex, logical, absent, JSONPath, and custom matchers visible withou
     { headers: { Accept: 'application/json' }, body: '{"items":[]}' }
   )
   assert.match(
-    blocks.find((block) => block.id === 'headers')!.expected,
+    blocks.find(block => block.id === 'headers')!.expected,
     /matches/
   )
   assert.match(
-    blocks.find((block) => block.id === 'body')!.expected,
+    blocks.find(block => block.id === 'body')!.expected,
     /matchesJsonPath/
   )
   assert.match(
-    blocks.find((block) => block.id === 'other')!.expected,
+    blocks.find(block => block.id === 'other')!.expected,
     /custom-rule/
   )
 })
@@ -136,7 +136,7 @@ test('form, cookies, multipart, basic authentication and binary bodies are repre
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
-        Authorization: `Basic ${btoa('user:p:ass')}`
+        'Authorization': `Basic ${btoa('user:p:ass')}`
       },
       body: 'q=hello+world',
       cookies: { session: { name: 'session', value: 'abc' } },
@@ -144,12 +144,12 @@ test('form, cookies, multipart, basic authentication and binary bodies are repre
     }
   )
   for (const id of ['form', 'cookies', 'auth'])
-    assert.equal(blocks.find((block) => block.id === id)!.changed, false, id)
-  assert.match(blocks.find((block) => block.id === 'multipart')!.actual, /file/)
+    assert.equal(blocks.find(block => block.id === id)!.changed, false, id)
+  assert.match(blocks.find(block => block.id === 'multipart')!.actual, /file/)
   const binary = compare(
     { bodyPatterns: [{ binaryEqualTo: 'AQID' }] },
     { bodyAsBase64: 'AQID' }
-  ).find((block) => block.id === 'body')!
+  ).find(block => block.id === 'body')!
   assert.equal(binary.changed, false)
 })
 
@@ -157,19 +157,19 @@ test('URL matching uses query only for full-URL patterns', () => {
   const path = compare(
     { urlPath: '/orders/abc' },
     { url: '/orders/abc?a=2' }
-  ).find((block) => block.id === 'url')!
+  ).find(block => block.id === 'url')!
   assert.equal(path.changed, false)
   const url = compare(
     { url: '/orders/abc?a=1' },
     { url: '/orders/abc?a=2' }
-  ).find((block) => block.id === 'url')!
+  ).find(block => block.id === 'url')!
   assert.equal(url.changed, true)
 })
 
 test('split and unified diffs align insertions, removals, context, and line numbers', () => {
   const lines = lineDiff('a\nb\nc\n', 'a\nx\ny\nc\n')
   assert.deepEqual(
-    lines.map((line) => line.kind),
+    lines.map(line => line.kind),
     ['context', 'removed', 'added', 'added', 'context']
   )
   const split = splitLines(lines)
@@ -193,7 +193,7 @@ test('downloaded patch reconstructs every request block, including final-newline
       applyPatch(blocks[index]!.expected, patch),
       blocks[index]!.actual
     )
-  assert.ok(lineDiff('same\n', 'same').some((line) => line.kind !== 'context'))
+  assert.ok(lineDiff('same\n', 'same').some(line => line.kind !== 'context'))
 })
 
 test('match status comes from WireMock, independently of response status or textual differences', () => {

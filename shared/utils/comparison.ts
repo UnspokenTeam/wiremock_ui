@@ -71,10 +71,10 @@ function mapValues(
           normalized = normalized[0]
         // WireMock serializes cookies as either strings or { name, value }.
         if (
-          !expected &&
-          normalized &&
-          typeof normalized === 'object' &&
-          'value' in normalized
+          !expected
+          && normalized
+          && typeof normalized === 'object'
+          && 'value' in normalized
         )
           normalized = (normalized as { value: unknown }).value
         return [lowerKeys ? key.toLowerCase() : key, normalized]
@@ -102,8 +102,8 @@ export function pathParameters(
   let source = ''
   let cursor = 0
   for (const match of template.matchAll(/\{([^{}]+)\}/g)) {
-    source +=
-      template
+    source
+      += template
         .slice(cursor, match.index)
         .replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '([^/]+)'
     names.push(match[1]!)
@@ -128,23 +128,23 @@ export function pathParameters(
 function bodyText(
   pattern: RequestPattern,
   request: LoggedRequest
-): { expected: string; actual: string; hint: string } {
+): { expected: string, actual: string, hint: string } {
   const patterns = pattern.bodyPatterns ?? []
   const single = patterns.length === 1 ? patterns[0] : undefined
   let expected: unknown = patterns.length ? patterns : ''
-  let actual: unknown =
-    request.body ??
-    (request.bodyAsBase64 ? `[base64] ${request.bodyAsBase64}` : '')
+  let actual: unknown
+    = request.body
+      ?? (request.bodyAsBase64 ? `[base64] ${request.bodyAsBase64}` : '')
   let hint = patterns.length ? 'Configured body matchers' : 'No body constraint'
   if (
-    single &&
-    ('equalToJson' in single ||
-      'equalTo' in single ||
-      'equalToXml' in single ||
-      'binaryEqualTo' in single)
+    single
+    && ('equalToJson' in single
+      || 'equalTo' in single
+      || 'equalToXml' in single
+      || 'binaryEqualTo' in single)
   ) {
     const key = ['equalToJson', 'equalTo', 'equalToXml', 'binaryEqualTo'].find(
-      (key) => key in single
+      key => key in single
     )!
     expected = single[key]
     const options = Object.fromEntries(
@@ -179,11 +179,11 @@ export function lineDiff(expected: string, actual: string): DiffLine[] {
   ]
   let oldLine = 1
   let newLine = 1
-  return changes.flatMap((change) =>
+  return changes.flatMap(change =>
     change.value
       .replace(/\n$/, '')
       .split('\n')
-      .map((text) => ({
+      .map(text => ({
         text,
         kind: change.added
           ? ('added' as const)
@@ -234,8 +234,8 @@ function block(
     actual,
     lines,
     split: splitLines(lines),
-    additions: lines.filter((line) => line.kind === 'added').length,
-    removals: lines.filter((line) => line.kind === 'removed').length,
+    additions: lines.filter(line => line.kind === 'added').length,
+    removals: lines.filter(line => line.kind === 'removed').length,
     changed: expected !== actual
   }
 }
@@ -257,24 +257,24 @@ export function compareRequest(
     'urlPathTemplate',
     'urlPattern',
     'urlPathPattern'
-  ].find((key) => typeof pattern[key] === 'string')
+  ].find(key => typeof pattern[key] === 'string')
   const expectedUrl = urlKey ? String(pattern[urlKey]) : ''
-  const actualUrl =
-    urlKey === 'url' || urlKey === 'urlPattern'
+  const actualUrl
+    = urlKey === 'url' || urlKey === 'urlPattern'
       ? `${url.pathname}${url.search}`
       : url.pathname
   const body = bodyText(pattern, request)
-  const form =
-    request.formParams ??
-    (/application\/x-www-form-urlencoded/i.test(
-      String(
-        Object.entries(request.headers ?? {}).find(
-          ([key]) => key.toLowerCase() === 'content-type'
-        )?.[1] ?? ''
+  const form
+    = request.formParams
+      ?? (/application\/x-www-form-urlencoded/i.test(
+        String(
+          Object.entries(request.headers ?? {}).find(
+            ([key]) => key.toLowerCase() === 'content-type'
+          )?.[1] ?? ''
+        )
       )
-    )
-      ? parameters(request.body ?? '')
-      : {})
+        ? parameters(request.body ?? '')
+        : {})
   const consumed = [
     'method',
     'url',
@@ -295,7 +295,7 @@ export function compareRequest(
     Object.entries(pattern).filter(([key]) => !consumed.includes(key))
   )
   const observed = Object.fromEntries(
-    Object.keys(other).map((key) => [
+    Object.keys(other).map(key => [
       key,
       key === 'scheme'
         ? url.protocol.replace(':', '')
@@ -393,7 +393,7 @@ export function compareRequest(
 
 export function comparisonPatch(blocks: ComparisonBlock[]): string {
   return blocks
-    .map((block) =>
+    .map(block =>
       createTwoFilesPatch(
         `mock/${block.id}`,
         `request/${block.id}`,

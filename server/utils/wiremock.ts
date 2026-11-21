@@ -1,35 +1,36 @@
 import type { H3Event } from 'h3'
-import { Buffer } from 'node:buffer'
+import { normalizeInstanceUrl } from '#shared/utils/instances'
+import { headersForInstance } from '../lib/instance-auth'
 
 export function wiremockConnection(event: H3Event) {
   const config = useRuntimeConfig(event)
-  let url: URL
+  const requestedUrl = getHeader(event, 'x-wiremock-url')
+  let defaultUrl = ''
+  let baseUrl: string
   try {
-    url = new URL(config.wiremockBaseUrl)
-    if (
-      !['http:', 'https:'].includes(url.protocol) ||
-      url.username ||
-      url.password ||
-      url.search ||
-      url.hash
-    )
-      throw new Error('Invalid URL')
+    defaultUrl = normalizeInstanceUrl(config.wiremockBaseUrl)
   } catch {
+    if (!requestedUrl) {
+      throw createError({
+        statusCode: 500,
+        statusMessage:
+          'Set NUXT_WIREMOCK_BASE_URL to a valid HTTP(S) URL without credentials or query parameters.'
+      })
+    }
+  }
+  try {
+    baseUrl = requestedUrl ? normalizeInstanceUrl(requestedUrl) : defaultUrl
+  } catch (error) {
     throw createError({
-      statusCode: 500,
-      statusMessage:
-        'Set NUXT_WIREMOCK_BASE_URL to a valid HTTP(S) URL without credentials or query parameters.'
+      statusCode: 400,
+      statusMessage: (error as Error).message
     })
   }
-  const baseUrl = url
-    .toString()
-    .replace(/\/$/, '')
-    .replace(/\/__admin$/, '')
-  const headers: Record<string, string> = { Accept: 'application/json' }
-  if (config.wiremockAuthToken)
-    headers.Authorization = `Bearer ${config.wiremockAuthToken}`
-  else if (config.wiremockUsername)
-    headers.Authorization = `Basic ${Buffer.from(`${config.wiremockUsername}:${config.wiremockPassword}`).toString('base64')}`
+  const headers = headersForInstance(baseUrl, defaultUrl, {
+    token: config.wiremockAuthToken,
+    username: config.wiremockUsername,
+    password: config.wiremockPassword
+  })
   return { baseUrl, headers }
 }
 
@@ -37,7 +38,7 @@ export async function wiremockFetch<T>(
   event: H3Event,
   path: string,
   options: {
-    method?: 'GET' | 'POST'
+    method?: 'GET' | 'POST' | 'PUT' | 'DELETE'
     body?: unknown
     query?: Record<string, string | number>
   } = {}
@@ -56,12 +57,34 @@ export async function wiremockFetch<T>(
   } catch (error) {
     const status = (error as { response?: { status?: number } }).response
       ?.status
+    if (status === 400 || status === 422) {
+      const upstream = (
+        error as { data?: { errors?: { detail?: string, title?: string }[] } }
+      ).data
+      const details = upstream?.errors
+        ?.map(item => item.detail || item.title)
+        .filter(Boolean)
+        .join('\n')
+        .slice(0, 2000)
+      throw createError({
+        statusCode: status,
+        statusMessage:
+          'WireMock rejected the mock. Check its request matchers and response definition.',
+        data: { details }
+      })
+    }
+    if (status === 404)
+      throw createError({
+        statusCode: 404,
+        statusMessage:
+          'This item is no longer available on the selected WireMock instance. Refresh and try again.'
+      })
     throw createError({
       statusCode: status === 401 || status === 403 ? 502 : 503,
       statusMessage:
         status === 401 || status === 403
           ? 'WireMock rejected the connection credentials. Check the server authentication settings.'
-          : `Cannot read WireMock${status ? ` (HTTP ${status})` : ''}. Check the configured address and that the instance is reachable from this app.`
+          : `Cannot reach WireMock${status ? ` (HTTP ${status})` : ''}. Check the selected address and that the instance is reachable from this app.`
     })
   }
 }

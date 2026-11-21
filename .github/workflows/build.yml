@@ -25,10 +25,14 @@ jobs:
           node-version: 24
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm run lint
       - run: pnpm run typecheck
       - run: pnpm test
       - name: Build and verify with real WireMock using Docker Compose
-        run: docker compose -f compose.test.yaml up --build --abort-on-container-exit --exit-code-from tests
+        run: |
+          docker compose -f compose.test.yaml up --build --wait wiremock wiremock-secondary wiretap
+          docker compose -f compose.test.yaml run --build --rm tests
+          bash tests/verify-history-restart.sh
       - name: Test service logs
         if: failure()
         run: docker compose -f compose.test.yaml logs --no-color
