@@ -1,5 +1,6 @@
 import type { H3Event } from 'h3'
 import { validateMock } from '#shared/utils/mocks'
+import { toNetMapping } from '#shared/utils/wiremock-net'
 
 export function mappingId(event: H3Event): string {
   const id = getRouterParam(event, 'id') ?? ''
@@ -14,7 +15,9 @@ export function mappingId(event: H3Event): string {
 
 export async function mockBody(event: H3Event) {
   try {
-    return validateMock(await readBody(event))
+    const draft = validateMock(await readBody(event))
+    toNetMapping(draft)
+    return draft
   } catch (error) {
     throw createError({
       statusCode: 400,

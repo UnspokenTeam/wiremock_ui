@@ -369,7 +369,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', shortcut))
       <div class="sidebar-bottom">
         <div class="sidebar-footer">
           <a
-            href="https://wiremock.org/docs/standalone/admin-api-reference/"
+            href="https://wiremock.org/dotnet/admin-api-reference/"
             target="_blank"
             rel="noopener noreferrer"
           ><UIcon name="i-lucide-book-open" />API reference</a><UColorModeButton size="sm" />
@@ -882,7 +882,7 @@ onBeforeUnmount(() => window.removeEventListener('keydown', shortcut))
                           selectedRequest.stubMapping?.id === selectedMockId
                         "
                       ><UIcon name="i-lucide-link" />Matched mock</span><span v-else-if="selectedNearMiss"><UIcon name="i-lucide-sparkles" />{{
-                        demo ? 'Demo suggestion' : 'WireMock suggestion'
+                        demo ? 'Demo suggestion' : 'Recorded WireMock.Net suggestion'
                       }}</span>
                     </div>
                     <UInput

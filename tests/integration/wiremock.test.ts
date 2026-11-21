@@ -6,7 +6,6 @@ import { compareRequest } from '../../shared/utils/comparison.ts'
 import { isMatched, matchedMapping, searchMappings } from '../../shared/utils/wiremock.ts'
 import type {
   NearMiss,
-  StubMapping,
   Workspace
 } from '../../shared/types/wiremock.ts'
 
@@ -26,7 +25,7 @@ async function ready(url: string) {
 }
 
 test(
-  'real WireMock journal, matched 404s, block diffs, route search and closest mocks',
+  'real WireMock.Net journal, matched 404s, block diffs, route search and closest mocks',
   { skip: !app || !wiremock, timeout: 90000 },
   async () => {
     await Promise.all([
@@ -35,29 +34,25 @@ test(
     ])
     const id = randomUUID()
     const path = `/wiretap-test-${id}`
-    const mapping: StubMapping = {
-      id,
-      name: 'Wiretap integration fixture',
-      request: {
-        method: 'POST',
-        urlPathTemplate: `${path}/{orderId}`,
-        pathParameters: { orderId: { equalTo: 'ord_1' } },
-        headers: {
-          'Content-Type': { equalTo: 'application/json' },
-          'X-API-Version': { equalTo: '2026-11' }
-        },
-        queryParameters: { expand: { equalTo: 'items' } },
-        bodyPatterns: [{ equalToJson: { quantity: 2 } }]
+    const native = {
+      Guid: id,
+      Title: 'Wiretap integration fixture',
+      Request: {
+        Methods: ['POST'],
+        Path: { Matchers: [{ Name: 'RegexMatcher', Pattern: `^${path}/(?<orderId>ord_1)$` }] },
+        Headers: [
+          { Name: 'Content-Type', Matchers: [{ Name: 'ExactMatcher', Pattern: 'application/json' }] },
+          { Name: 'X-API-Version', Matchers: [{ Name: 'ExactMatcher', Pattern: '2026-11' }] }
+        ],
+        Params: [{ Name: 'expand', Matchers: [{ Name: 'ExactMatcher', Pattern: 'items' }] }],
+        Body: { Matcher: { Name: 'JsonMatcher', Pattern: { quantity: 2 } } }
       },
-      response: {
-        status: 404,
-        jsonBody: { error: 'An intentional matched 404 response' }
-      }
+      Response: { StatusCode: 404, BodyAsJson: { error: 'An intentional matched 404 response' } }
     }
     const created = await fetch(`${wiremock}/__admin/mappings`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(mapping)
+      body: JSON.stringify(native)
     })
     assert.equal(created.status, 201)
     let eventIds: string[] = []
@@ -107,6 +102,7 @@ test(
           'POST'
         ).some(item => item.id === id)
       )
+      const mapping = workspace.mappings.find(item => item.id === id)!
       const matchedBlocks = compareRequest(mapping, matched.request)
       for (const blockId of ['method', 'query', 'path', 'body']) {
         assert.equal(
@@ -141,6 +137,20 @@ test(
       assert.equal(nearResponse.status, 200)
       const near = (await nearResponse.json()) as { nearMisses: NearMiss[] }
       assert.ok(near.nearMisses.some(miss => miss.stubMapping.id === id))
+      // A later edit must not rewrite the definitions saved with older traffic.
+      const changed = await fetch(`${wiremock}/__admin/mappings/${id}`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...native, Title: 'Changed after capture', Request: { ...native.Request, Body: { Matcher: { Name: 'JsonMatcher', Pattern: { quantity: 3 } } } } })
+      })
+      assert.equal(changed.status, 200)
+      const refreshed = await (await fetch(`${app}/api/workspace`)).json() as Workspace
+      assert.equal(refreshed.mappings.find(item => item.id === id)?.name, 'Changed after capture')
+      assert.equal(refreshed.requests.find(item => item.id === matched.id)?.stubMapping?.name, native.Title)
+      const savedNear = await (await fetch(`${app}/api/near-misses`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ requestId: unmatched.id })
+      })).json() as { nearMisses: NearMiss[] }
+      assert.equal(savedNear.nearMisses[0]?.stubMapping.name, native.Title)
       const invalid = await fetch(`${app}/api/near-misses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

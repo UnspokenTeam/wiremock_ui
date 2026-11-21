@@ -57,17 +57,17 @@ export async function wiremockFetch<T>(
   } catch (error) {
     const status = (error as { response?: { status?: number } }).response
       ?.status
-    if (status === 400 || status === 422) {
-      const upstream = (
-        error as { data?: { errors?: { detail?: string, title?: string }[] } }
-      ).data
-      const details = upstream?.errors
+    const upstream = (error as { data?: { Status?: string, errors?: { detail?: string, title?: string }[] } }).data
+    const rejectedDefinition = status === 500 && (options.method === 'POST' || options.method === 'PUT')
+      && typeof upstream?.Status === 'string'
+    if (status === 400 || status === 422 || rejectedDefinition) {
+      const details = upstream?.Status?.split('\n')[0]?.slice(0, 2000) ?? upstream?.errors
         ?.map(item => item.detail || item.title)
         .filter(Boolean)
         .join('\n')
         .slice(0, 2000)
       throw createError({
-        statusCode: status,
+        statusCode: rejectedDefinition ? 422 : status,
         statusMessage:
           'WireMock rejected the mock. Check its request matchers and response definition.',
         data: { details }

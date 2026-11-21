@@ -8,7 +8,7 @@ fixture="$("${compose[@]}" exec -T wiretap node --input-type=module <<'JS'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 const app = 'http://127.0.0.1:3000'
-const wiremock = 'http://wiremock:8080'
+const wiremock = 'http://wiremock:80'
 const id = randomUUID()
 const activeId = randomUUID()
 const path = `/restart-history-${id}`

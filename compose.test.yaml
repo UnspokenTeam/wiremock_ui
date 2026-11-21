@@ -2,38 +2,31 @@ name: wiretap-integration
 
 services:
   wiremock:
-    image: wiremock/wiremock:3.13.2
+    image: sheyenrath/wiremock.net:2.31.0
     ports:
-      - '127.0.0.1:${WIREMOCK_TEST_PORT:-18089}:8080'
-    healthcheck:
+      - '127.0.0.1:${WIREMOCK_TEST_PORT:-18089}:80'
+    command: ['--ReadStaticMappings', 'true', '--WireMockLogger', 'WireMockConsoleLogger']
+    volumes:
+      - wiremock-mappings:/app/__admin/mappings
+    healthcheck: &wiremock-health
       test:
         - CMD
-        - curl
-        - --fail
-        - --silent
-        - http://localhost:8080/__admin/health
+        - bash
+        - -ec
+        - "exec 3<>/dev/tcp/127.0.0.1/80; printf 'GET /__admin/health HTTP/1.0\\r\\nHost: localhost\\r\\n\\r\\n' >&3; read -r status <&3; [[ $$status == *' 200 '* ]]"
       interval: 2s
       timeout: 3s
       start_period: 5s
       retries: 30
 
   wiremock-secondary:
-    image: wiremock/wiremock:3.13.2
+    image: sheyenrath/wiremock.net:2.31.0
     ports:
-      - '127.0.0.1:${WIREMOCK_SECONDARY_TEST_PORT:-18090}:8080'
-    healthcheck:
-      test:
-        [
-          'CMD',
-          'curl',
-          '--fail',
-          '--silent',
-          'http://localhost:8080/__admin/health'
-        ]
-      interval: 2s
-      timeout: 3s
-      start_period: 5s
-      retries: 30
+      - '127.0.0.1:${WIREMOCK_SECONDARY_TEST_PORT:-18090}:80'
+    command: ['--ReadStaticMappings', 'true', '--WireMockLogger', 'WireMockConsoleLogger']
+    volumes:
+      - wiremock-secondary-mappings:/app/__admin/mappings
+    healthcheck: *wiremock-health
 
   wiretap:
     image: ${WIRETAP_TEST_IMAGE:-wiretap-integration:test}
@@ -44,7 +37,7 @@ services:
     ports:
       - '127.0.0.1:${WIRETAP_TEST_PORT:-3100}:3000'
     environment:
-      NUXT_WIREMOCK_BASE_URL: http://wiremock:8080
+      NUXT_WIREMOCK_BASE_URL: http://wiremock:80
       __VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS: wiretap
     volumes:
       - wiretap-history:/app/.data
@@ -69,8 +62,8 @@ services:
       dockerfile: Dockerfile.test
     environment:
       WIRETAP_TEST_URL: http://wiretap:3000
-      WIREMOCK_TEST_URL: http://wiremock:8080
-      WIREMOCK_SECONDARY_TEST_URL: http://wiremock-secondary:8080
+      WIREMOCK_TEST_URL: http://wiremock:80
+      WIREMOCK_SECONDARY_TEST_URL: http://wiremock-secondary:80
     depends_on:
       wiremock:
         condition: service_healthy
@@ -81,3 +74,5 @@ services:
 
 volumes:
   wiretap-history:
+  wiremock-mappings:
+  wiremock-secondary-mappings:

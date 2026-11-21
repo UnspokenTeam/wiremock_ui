@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { StubMapping } from '#shared/types/wiremock'
+import { fromNetMapping, toNetMapping, type NetMapping } from '#shared/utils/wiremock-net'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store')
@@ -7,10 +7,11 @@ export default defineEventHandler(async (event) => {
   const id = draft.id ?? randomUUID()
   const { uuid: _uuid, ...mapping } = draft
   const created = await withInstanceHistory(event, async (store, baseUrl) => {
-    const saved = await wiremockFetch<StubMapping>(event, '/mappings', {
+    await wiremockFetch(event, '/mappings', {
       method: 'POST',
-      body: { ...mapping, id }
+      body: toNetMapping({ ...mapping, id })
     })
+    const saved = fromNetMapping(await wiremockFetch<NetMapping>(event, `/mappings/${id}`))
     store.rememberMapping(baseUrl, saved)
     return saved
   })

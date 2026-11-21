@@ -152,10 +152,10 @@ export function demoWorkspace(): Workspace {
       wasMatched: matched,
       ...(matched ? { stubMapping: mappings[index] } : {}),
       responseDefinition: matched
-        ? mappings[index]!.response
+        ? { ...mappings[index]!.response, status: Number(mappings[index]!.response.status ?? 200) }
         : { status: 404, fromConfiguredStub: false },
       response: {
-        status: matched ? mappings[index]!.response.status : 404,
+        status: matched ? Number(mappings[index]!.response.status ?? 200) : 404,
         body: matched
           ? JSON.stringify(mappings[index]!.response.jsonBody ?? '')
           : 'No response could be served as there are no stub mappings matching this request.'

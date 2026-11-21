@@ -39,7 +39,7 @@ jobs:
           docker run --rm wiretap-integration:ci pnpm run lint
           docker run --rm wiretap-integration:ci pnpm run typecheck
           docker run --rm wiretap-integration:ci pnpm test
-      - name: Run integration tests with real WireMock
+      - name: Run integration tests with real WireMock.Net
         run: |
           docker compose -f compose.test.yaml pull wiremock wiremock-secondary
           docker compose -f compose.test.yaml up --no-build --pull never --wait wiremock wiremock-secondary wiretap

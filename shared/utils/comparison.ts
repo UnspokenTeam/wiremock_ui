@@ -52,9 +52,46 @@ function literal(matcher: unknown): unknown {
   if (!matcher || typeof matcher !== 'object' || Array.isArray(matcher))
     return matcher
   const object = matcher as Matcher
+  const native = nativeMatcher(object)
+  if (native?.Name === 'ExactMatcher' && !native.IgnoreCase && !native.RejectOnMatch
+    && Object.keys(native).every(key => ['Name', 'Pattern', 'IgnoreCase', 'RejectOnMatch'].includes(key)))
+    return native.Pattern
   if (Object.keys(object).length === 1 && 'equalTo' in object)
     return object.equalTo
   return matcher
+}
+
+function nativeMatcher(rule: Matcher): Matcher | undefined {
+  if (Object.keys(rule).some(key => !['Matchers', 'Matcher', 'MatchOperator'].includes(key))) return undefined
+  if (rule.Matcher && typeof rule.Matcher === 'object') return rule.Matcher as Matcher
+  const matchers = rule.Matchers as Matcher[] | undefined
+  return matchers?.length === 1 ? matchers[0] : undefined
+}
+
+function namedPath(pattern: string | undefined, pathname: string) {
+  const expected: ValueMap = {}
+  if (!pattern) return { expected, actual: {} }
+  // Named .NET regex groups provide the parameter names. Relax each value
+  // constraint for extraction so mismatching values remain visible in the diff.
+  const relaxed = pattern.replace(/\(\?<([A-Za-z_]\w*)>([^()]*)\)/g, (_group, name: string, rule: string) => {
+    expected[name] = /[.*+?^${}()|[\]\\]/.test(rule) ? { matches: rule } : { equalTo: rule }
+    return `(?<${name}>[^/]+)`
+  })
+  if (!Object.keys(expected).length) return { expected, actual: {} }
+  try {
+    const groups = new RegExp(relaxed).exec(pathname)?.groups
+    return { expected, actual: groups
+      ? Object.fromEntries(Object.entries(groups).map(([name, value]) => {
+          try {
+            return [name, decodeURIComponent(value)]
+          } catch {
+            return [name, value]
+          }
+        }))
+      : { '(path)': 'Does not fit the selected named path pattern' } }
+  } catch {
+    return { expected, actual: { '(path)': 'Path uses .NET regex syntax; inspect the URL block' } }
+  }
 }
 
 function mapValues(
@@ -130,7 +167,15 @@ function bodyText(
   request: LoggedRequest
 ): { expected: string, actual: string, hint: string } {
   const patterns = pattern.bodyPatterns ?? []
-  const single = patterns.length === 1 ? patterns[0] : undefined
+  let single = patterns.length === 1 ? patterns[0] : undefined
+  let nativeHint = ''
+  const native = single ? nativeMatcher(single) : undefined
+  const nativeNames: Record<string, string> = { ExactMatcher: 'equalTo', JsonMatcher: 'equalToJson' }
+  if (native && nativeNames[String(native.Name)] && 'Pattern' in native) {
+    const { Name, Pattern, ...options } = native
+    nativeHint = `${Name}${Object.keys(options).length ? ` · ${JSON.stringify(options)}` : ''}`
+    single = { [nativeNames[String(Name)]!]: Pattern }
+  }
   let expected: unknown = patterns.length ? patterns : ''
   let actual: unknown
     = request.body
@@ -166,7 +211,7 @@ function bodyText(
     }
     if (key === 'binaryEqualTo') actual = request.bodyAsBase64 ?? ''
   }
-  return { expected: pretty(expected), actual: pretty(actual), hint }
+  return { expected: pretty(expected), actual: pretty(actual), hint: nativeHint ? `${nativeHint} · ${hint}` : hint }
 }
 
 export function lineDiff(expected: string, actual: string): DiffLine[] {
@@ -258,11 +303,12 @@ export function compareRequest(
     'urlPattern',
     'urlPathPattern'
   ].find(key => typeof pattern[key] === 'string')
-  const expectedUrl = urlKey ? String(pattern[urlKey]) : ''
+  const expectedUrl = urlKey ? String(pattern[urlKey]) : pretty(pattern.Path ?? pattern.Url ?? '')
   const actualUrl
     = urlKey === 'url' || urlKey === 'urlPattern'
-      ? `${url.pathname}${url.search}`
+      ? (/^https?:\/\//.test(expectedUrl) || pattern.Url !== undefined ? url.href : `${url.pathname}${url.search}`)
       : url.pathname
+  const named = namedPath(pattern.urlPathPattern, url.pathname)
   const body = bodyText(pattern, request)
   const form
     = request.formParams
@@ -282,6 +328,8 @@ export function compareRequest(
     'urlPathTemplate',
     'urlPattern',
     'urlPathPattern',
+    'Path',
+    'Url',
     'headers',
     'queryParameters',
     'pathParameters',
@@ -331,7 +379,7 @@ export function compareRequest(
       request.method,
       'HTTP method'
     ),
-    block('url', 'URL', expectedUrl, actualUrl, urlKey ?? 'No URL constraint'),
+    block('url', 'URL', expectedUrl, pattern.Url !== undefined ? url.href : actualUrl, urlKey ?? (pattern.Path !== undefined ? 'WireMock.Net Path matchers' : pattern.Url !== undefined ? 'WireMock.Net Url matchers' : 'No URL constraint')),
     block(
       'headers',
       'Headers',
@@ -349,11 +397,11 @@ export function compareRequest(
     block(
       'path',
       'Path parameters',
-      mapValues(pattern.pathParameters, true),
-      mapValues(pathParameters(pattern.urlPathTemplate, url.pathname)),
+      mapValues(pattern.pathParameters ?? named.expected, true),
+      mapValues(pattern.urlPathTemplate ? pathParameters(pattern.urlPathTemplate, url.pathname) : named.actual),
       pattern.urlPathTemplate
         ? 'Extracted from the selected mock’s URL template'
-        : 'Requires a URL template on the mock'
+        : 'Extracted from named groups in the selected mock’s path regex'
     ),
     block('body', 'Body', body.expected, body.actual, body.hint),
     block(
