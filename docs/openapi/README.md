@@ -1,21 +1,31 @@
-# WireMock Admin API
+# WireMock.Net Admin API
 
-`wiremock-admin-api.json` is the unmodified OpenAPI 3.0 specification linked by
-the [official WireMock Admin API reference](https://wiremock.org/docs/standalone/admin-api-reference/).
+`wiremock-admin-api.yaml` is the WireMock.Net OpenAPI 3.0.1 contract supplied
+for this project. Its `info.version` is `2.12.0`. It replaces the Java WireMock
+specification; the two admin APIs have different payload formats.
 
-- Download: https://wiremock.org/js/wiremock-admin-api.json
-- Retrieved: 2026-11-21
-- Specification `info.version`: `3.12.2`
-- Upstream: [wiremock/wiremock](https://github.com/wiremock/wiremock), Apache-2.0
+Reference: [official WireMock.Net admin API documentation](https://wiremock.org/dotnet/admin-api-reference/).
+Integration tests run against **`sheyenrath/wiremock.net:2.31.0`**, independently
+of the reference document's version. The supplied specification is retained as-is.
 
-A running WireMock instance also exposes its version-specific Swagger UI and
-specification under `/__admin/docs/`. The downloaded reference can lag the
-running server; the UI preserves additional matcher fields in “Other matchers”.
+The app reads `GET /__admin/mappings`, `GET /__admin/requests`, and
+`GET /__admin/requests/{guid}`. Lists are plain arrays. Mapping definitions use
+`Guid`, `Title`, `Request`, `Response`, and native `Matcher` / `Matchers` objects.
+The server normalizes these for display and preserves additional .NET fields
+when editing. Full JSON in the mock editor uses the native WireMock.Net format.
 
-The app uses `GET /__admin/mappings`, `GET /__admin/requests`,
-`GET /__admin/requests/{requestId}`, and `POST /__admin/near-misses/request`.
-The last operation is a read-only similarity query. Mock management also uses
-`POST /__admin/mappings`, `PUT /__admin/mappings/{stubMappingId}`, and
-`DELETE /__admin/mappings/{stubMappingId}`. Updates read the saved mapping back
-with `GET /__admin/mappings/{stubMappingId}`. Runtime instance selection applies
-to all these operations. The UI does not replay requests or clear the journal.
+Mock writes use `POST /__admin/mappings`, `PUT /__admin/mappings/{guid}`, and
+`DELETE /__admin/mappings/{guid}`. Create/update responses are acknowledgements,
+so the app reads the saved definition with `GET /__admin/mappings/{guid}`.
+`SaveToFile` controls WireMock.Net's own mapping persistence.
+
+Nearest-mock suggestions use each log's `PartialMappingGuid` and
+`PartialRequestMatchResult.AverageTotalScore`, as recorded by WireMock.Net's
+matcher engine. This works with archived logs after the upstream journal is
+cleared. The app does not call Java's `POST /__admin/near-misses/request`.
+A suggestion requires that the mapping was observed by
+the app. All saved mocks remain available for manual comparison.
+
+Compose health checks use `GET /__admin/health` on container port 80. Enable
+the admin interface on custom WireMock.Net deployments. The app does not alter
+the server's global settings or clear its journal.

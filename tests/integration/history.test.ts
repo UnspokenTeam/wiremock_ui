@@ -1,6 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
+import { toNetMapping } from '../../shared/utils/wiremock-net.ts'
 import { compareRequest } from '../../shared/utils/comparison.ts'
 import type {
   NearMiss,
@@ -67,7 +68,7 @@ test(
         const response = await fetch(`${base}/__admin/mappings`, {
           method: 'POST',
           headers: jsonHeaders,
-          body: JSON.stringify(mock)
+          body: JSON.stringify(toNetMapping(mock))
         })
         assert.equal(response.status, 201)
       }
@@ -109,7 +110,7 @@ test(
       )
       const deleted = await workspace()
       const savedMock = deleted.mappings.find(item => item.id === id)!
-      assert.deepEqual(savedMock.request, mapping.request)
+      assert.deepEqual(savedMock.request, before.mappings.find(item => item.id === id)!.request)
       assert.deepEqual(savedMock.metadata, mapping.metadata)
       assert.ok(deleted.history!.mappingStates[id]!.deletedAt)
       assert.equal(deleted.history!.mappingStates[id]!.firstSeenAt, firstSeen)

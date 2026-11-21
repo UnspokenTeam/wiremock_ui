@@ -1,9 +1,9 @@
 # Wiretap
 
-A Nuxt UI workspace for understanding WireMock traffic. Browse the request
+A Nuxt UI workspace for understanding WireMock.Net traffic. Browse the request
 journal, filter matched and unmatched requests, search mock routes, and compare
 **any mock with any received request**. Create, edit, duplicate, and delete mocks,
-switch between saved WireMock instances, and choose your live refresh interval.
+switch between saved WireMock.Net instances, and choose your live refresh interval.
 
 ## Run locally
 
@@ -53,7 +53,7 @@ Every mock write uses the instance selected when that operation starts.
 The selected instance's saved history is then loaded from the app's database.
 
 URLs must be reachable from the **app server**. For example, an instance in the
-same Docker network can use `http://wiremock-secondary:8080`. Context paths and
+same Docker network can use `http://wiremock-secondary:80`. Context paths and
 a trailing `/__admin/` are supported. Embedded credentials, query parameters,
 and fragments are not accepted in instance URLs. Environment-configured admin
 credentials stay on the server and are only sent to the configured default
@@ -88,11 +88,12 @@ forgetting a browser profile does not erase its saved data. The archive belongs
 to the app server and is shared by browsers using that server.
 
 Collection happens during live polling or manual refresh. Requests and mocks
-removed from WireMock before the app ever observes them cannot be recovered,
-except mock snapshots embedded in captured matched requests. Pausing polling or
-closing the UI stops collection. Saved definitions retain the latest observed
-version per mock ID; each captured request also retains its original embedded
-matched-mock snapshot when WireMock provides one.
+removed from WireMock before the app ever observes them cannot be recovered.
+Pausing polling or closing the UI stops collection. Saved definitions retain
+the latest observed version per mock ID. WireMock.Net logs reference mapping
+IDs; each captured request retains the first observed definition for its matched
+ID. If a mock was changed before the app first observed the request, its original
+definition cannot be reconstructed from the ID.
 
 Locally the database lives in `.data/`, which is excluded from Git and image
 builds. Compose mounts the named `wiretap-history` volume at `/app/.data`, so
@@ -109,14 +110,14 @@ and creates a separate mapping.
 
 The editor includes name, method, URL matching, priority, persistence, additional
 request matchers, and the full response definition. Switch to **Full JSON** for
-all WireMock fields, including scenarios, metadata, transformers, custom matchers,
-and faults. Advanced fields are retained when switching editor modes or
+the native WireMock.Net mapping (`Guid`, `Title`, `Request`, `Response`),
+including scenarios, `Data`, transformers, custom matchers, webhooks, and faults. Advanced fields are retained when switching editor modes or
 duplicating a mapping. Validation and WireMock errors stay in the editor with
 your draft, so you can correct and retry them.
 
-**Keep on WireMock disk** enables the mapping’s `persistent` flag. Persistence
-uses WireMock’s storage: use a writable mounted mappings directory if routes
-must remain active after WireMock container recreation. The app's history is
+**Save this change to WireMock disk** enables WireMock.Net's `SaveToFile` flag. Use a
+writable mount at `/app/__admin/mappings` and start WireMock.Net with
+`--ReadStaticMappings true` to reload saved routes after a restart. The app's history is
 saved independently of that flag. Demo-mode edits affect sample data only.
 
 ## Explore traffic
@@ -143,14 +144,16 @@ full comparison as a `.patch` file.
 
 Blocks cover method, URL, headers, body, query parameters, path parameters,
 cookies, form fields, multipart parts, basic authentication, and other matchers.
-Path values are extracted from the **selected mock’s** URL template. Repeated
+Path values are extracted from named groups such as `(?<orderId>ord_1)` in
+the **selected mock's** path regex. The editor's path templates compile to native
+WireMock.Net named regex groups. Repeated
 query values are retained. Header names are normalized to lowercase. JSON
-bodies using `equalToJson` are formatted with sorted object keys; array order is
+bodies using `JsonMatcher` are formatted with sorted object keys; array order is
 retained, and matcher options remain visible.
 
 **Text differences are not WireMock match results.** The journal’s matched state
 comes from WireMock, including stubs that intentionally return a 404. Literal
-`equalTo` rules are displayed as values for readability; regex, logical,
+`ExactMatcher` rules are displayed as values for readability; regex, logical,
 JSONPath, XML, absence, and custom matchers are retained as configured rules.
 Additional unconstrained fields can therefore appear as text differences even
 for a matched request. This app does not attempt to reimplement WireMock’s
@@ -159,9 +162,12 @@ the full values.
 
 The UI reads traffic and supports individual mock creation, updates, duplication,
 and deletion. It does not clear the request journal.
-The [downloaded official OpenAPI spec](docs/openapi/wiremock-admin-api.json),
-its source and version are documented in [docs/openapi](docs/openapi/README.md).
-Your instance also provides Swagger at `/__admin/docs/`.
+The [WireMock.Net OpenAPI contract](docs/openapi/wiremock-admin-api.yaml) and
+its tested version are documented in [docs/openapi](docs/openapi/README.md).
+This app targets WireMock.Net; Java WireMock's admin API is not supported.
+Nearest-mock suggestions show the single closest mapping and score recorded
+in each .NET log, when its definition is available. Selecting any other saved
+mock for comparison remains available.
 
 ## Docker
 
@@ -214,7 +220,7 @@ docker build -f Dockerfile.test -t wiretap-integration:local .
 
 1. **Verify (pull request):** build only the integration-test image. Use it for
    lint, type checks, unit tests, and Docker Compose integration tests against
-   two real WireMock instances, including history and restart checks.
+   two real WireMock.Net instances, including history and restart checks.
 2. **Build (after verify succeeds):** build the production image separately and
    push it as
    `ghcr.io/<owner>/<repository>:dev-pr-<number>`.
@@ -253,7 +259,7 @@ search, match status independent of HTTP response codes, archive deduplication,
 deleted-state restoration, per-instance retention, and reopening a saved database.
 
 Run the full integration check with Docker Compose. This builds one integration
-image for the app and test runner, starts two official **WireMock 3.13.2** containers, waits for
+image for the app and test runner, starts two **`sheyenrath/wiremock.net:2.31.0`** containers, waits for
 the services to be healthy, and runs the tests over the Compose network. Only
 Docker is required on the host:
 
@@ -287,7 +293,7 @@ docker compose -f compose.test.yaml run --rm tests
 
 The app is at [localhost:3100](http://localhost:3100) and WireMock is at
 [localhost:18089](http://localhost:18089), with the second WireMock at
-[localhost:18090](http://localhost:18090). Add `http://wiremock-secondary:8080` in
+[localhost:18090](http://localhost:18090). Add `http://wiremock-secondary:80` in
 the UI to switch to it. Override `WIRETAP_TEST_PORT`, `WIREMOCK_TEST_PORT`, and
 `WIREMOCK_SECONDARY_TEST_PORT` if those host ports are occupied. This stack is separate from the
 normal `compose.yaml`, which connects to your existing WireMock.

@@ -1,4 +1,5 @@
 import type { RequestPattern, StubMapping } from '../types/wiremock.ts'
+import { fromNetMapping, type NetMapping } from './wiremock-net.ts'
 
 export interface MockDraft {
   id?: string
@@ -14,6 +15,8 @@ export function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 export function validateMock(value: unknown): MockDraft {
+  if (isRecord(value) && isRecord(value.Request) && isRecord(value.Response))
+    value = fromNetMapping(value as NetMapping)
   if (
     !isRecord(value)
     || !isRecord(value.request)
@@ -33,7 +36,7 @@ export function validateMock(value: unknown): MockDraft {
   if (
     value.request.method !== undefined
     && (typeof value.request.method !== 'string'
-      || !/^[A-Z]+$/.test(value.request.method))
+      || !/^[A-Z]+(?:, [A-Z]+)*$/.test(value.request.method))
   ) {
     throw new Error(
       'The HTTP method must be uppercase, such as GET, POST, or ANY.'
@@ -55,16 +58,19 @@ export function validateMock(value: unknown): MockDraft {
     throw new Error('The URL matching rule must contain a non-empty string.')
   if (
     response.status !== undefined
-    && (!Number.isInteger(response.status)
-      || Number(response.status) < 100
-      || Number(response.status) > 599)
+    && (typeof response.status === 'string'
+      ? !response.status.trim()
+      : !Number.isInteger(response.status)
+        || Number(response.status) < 100
+        || Number(response.status) > 599)
   )
     throw new Error('The response status must be between 100 and 599.')
   if (
     value.priority !== undefined
-    && (!Number.isInteger(value.priority) || Number(value.priority) < 1)
+    && (!Number.isInteger(value.priority)
+      || Number(value.priority) < -2147483648 || Number(value.priority) > 2147483647)
   )
-    throw new Error('Priority must be a positive integer.')
+    throw new Error('Priority must be a 32-bit integer; lower values have higher priority.')
   return value as MockDraft
 }
 

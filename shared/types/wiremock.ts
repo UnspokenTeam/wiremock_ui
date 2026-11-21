@@ -1,4 +1,4 @@
-// The compatible subset used by the UI. Full upstream contract: docs/openapi/.
+// Normalized display model for WireMock.Net. Native contract: docs/openapi/.
 export type Matcher = Record<string, unknown>
 export type ValueMap = Record<string, unknown>
 
@@ -41,7 +41,7 @@ export interface StubMapping {
   uuid?: string
   name?: string
   request: RequestPattern
-  response: Record<string, unknown> & { status?: number }
+  response: Record<string, unknown> & { status?: number | string }
   priority?: number
   scenarioName?: string
   requiredScenarioState?: string
@@ -54,6 +54,7 @@ export interface ServeEvent {
   request: LoggedRequest
   wasMatched?: boolean
   stubMapping?: StubMapping
+  closestMapping?: StubMapping
   responseDefinition?: Record<string, unknown> & {
     status?: number
     fromConfiguredStub?: boolean

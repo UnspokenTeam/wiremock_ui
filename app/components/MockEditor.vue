@@ -2,6 +2,7 @@
 import type { MockDraft } from '#shared/utils/mocks'
 import type { FormError, FormErrorEvent } from '@nuxt/ui'
 import { isRecord, validateMock } from '#shared/utils/mocks'
+import { fromNetMapping, toNetMapping } from '#shared/utils/wiremock-net'
 
 const props = defineProps<{
   draft?: MockDraft
@@ -34,6 +35,9 @@ const state = reactive({
   response,
   raw
 })
+const methodOptions = computed(() => [...new Set([
+  'GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS', 'ANY', 'TRACE', 'CONNECT', method.value
+])])
 let extraFields: Record<string, unknown> = {}
 const urlKeys = [
   'url',
@@ -45,14 +49,15 @@ const urlKeys = [
 const urlTypes = [
   { label: 'Exact path', value: 'urlPath' },
   { label: 'Path template', value: 'urlPathTemplate' },
-  { label: 'Exact path & query', value: 'url' },
+  { label: 'Exact absolute URL', value: 'url' },
   { label: 'Path regular expression', value: 'urlPathPattern' },
-  { label: 'Path & query regular expression', value: 'urlPattern' },
+  { label: 'Absolute URL regular expression', value: 'urlPattern' },
   { label: 'Any URL', value: 'none' }
 ]
 
 function populate(value: MockDraft) {
-  const copy = JSON.parse(JSON.stringify(value)) as MockDraft
+  const native = toNetMapping(value)
+  const copy = fromNetMapping(native)
   name.value = copy.name ?? ''
   method.value = copy.request.method ?? 'ANY'
   urlType.value
@@ -63,14 +68,16 @@ function populate(value: MockDraft) {
   persistent.value = Boolean(copy.persistent)
   matchers.value = JSON.stringify(
     Object.fromEntries(
-      Object.entries(copy.request).filter(
-        ([key]) => key !== 'method' && !urlKeys.includes(key)
+      Object.entries(native.Request).filter(
+        ([key]) => key !== 'Methods'
+          && !(key === 'Path' && ['urlPath', 'urlPathPattern', 'urlPathTemplate'].includes(urlType.value))
+          && !(key === 'Url' && ['url', 'urlPattern'].includes(urlType.value))
       )
     ),
     null,
     2
   )
-  response.value = JSON.stringify(copy.response, null, 2)
+  response.value = JSON.stringify(native.Response, null, 2)
   extraFields = Object.fromEntries(
     Object.entries(copy).filter(
       ([key]) =>
@@ -93,7 +100,7 @@ function build(): MockDraft {
     throw new Error('Additional request matchers must be a JSON object.')
   if (
     Object.keys(additional).some(
-      key => key === 'method' || urlKeys.includes(key)
+      key => key === 'method' || key === 'Methods' || urlKeys.includes(key)
     )
   )
     throw new Error(
@@ -112,14 +119,14 @@ function build(): MockDraft {
     },
     response: JSON.parse(response.value)
   }
-  return validateMock(value)
+  return validateMock(fromNetMapping(toNetMapping(value)))
 }
 
 function setMode(next: string) {
   if (next === mode.value) return
   error.value = ''
   try {
-    if (next === 'json') raw.value = JSON.stringify(build(), null, 2)
+    if (next === 'json') raw.value = JSON.stringify(toNetMapping(build()), null, 2)
     else populate(validateMock(JSON.parse(raw.value)))
     mode.value = next
   } catch (cause) {
@@ -141,11 +148,12 @@ function validateFields(): FormError[] {
     errors.push({ name: 'url', message: 'Enter a URL or path matching rule.' })
   if (
     priority.value !== ''
-    && (!Number.isInteger(Number(priority.value)) || Number(priority.value) < 1)
+    && (!Number.isInteger(Number(priority.value))
+      || Number(priority.value) < -2147483648 || Number(priority.value) > 2147483647)
   )
     errors.push({
       name: 'priority',
-      message: 'Priority must be a positive integer.'
+      message: 'Priority must be a 32-bit integer.'
     })
   try {
     const extra = JSON.parse(matchers.value)
@@ -153,7 +161,7 @@ function validateFields(): FormError[] {
       throw new Error('Additional matchers must be a JSON object.')
     if (
       Object.keys(extra).some(
-        key => key === 'method' || urlKeys.includes(key)
+        key => key === 'method' || key === 'Methods' || urlKeys.includes(key)
       )
     )
       throw new Error('Set the method and URL in the fields above.')
@@ -161,7 +169,7 @@ function validateFields(): FormError[] {
     errors.push({ name: 'matchers', message: (cause as Error).message })
   }
   try {
-    validateMock({ request: {}, response: JSON.parse(response.value) })
+    validateMock({ Request: {}, Response: JSON.parse(response.value) })
   } catch (cause) {
     errors.push({ name: 'response', message: (cause as Error).message })
   }
@@ -287,18 +295,7 @@ async function save() {
             >
               <USelect
                 v-model="method"
-                :items="[
-                  'GET',
-                  'POST',
-                  'PUT',
-                  'PATCH',
-                  'DELETE',
-                  'HEAD',
-                  'OPTIONS',
-                  'ANY',
-                  'TRACE',
-                  'CONNECT'
-                ]"
+                :items="methodOptions"
                 :disabled="saving"
               />
             </UFormField><UFormField
@@ -334,7 +331,8 @@ async function save() {
               <UInput
                 v-model="priority"
                 type="number"
-                :min="1"
+                :min="-2147483648"
+                :max="2147483647"
                 placeholder="5"
                 :disabled="saving"
               />
@@ -344,7 +342,7 @@ async function save() {
             >
               <UCheckbox
                 v-model="persistent"
-                label="Keep on WireMock disk"
+                label="Save this change to WireMock disk"
                 :disabled="saving"
               />
             </UFormField>
@@ -353,7 +351,7 @@ async function save() {
             <UFormField
               label="Additional request matchers (JSON)"
               name="matchers"
-              description="Headers, query/path parameters, bodyPatterns, cookies, or other rules."
+              description="WireMock.Net fields such as Headers, Params, Body, and Cookies."
             >
               <UTextarea
                 v-model="matchers"
@@ -365,7 +363,7 @@ async function save() {
             </UFormField><UFormField
               label="Response definition (JSON)"
               name="response"
-              description="Set status, headers, jsonBody/body, delays, faults, or transformers."
+              description="Set StatusCode, Headers, BodyAsJson/Body, Delay, Fault, or UseTransformer."
             >
               <UTextarea
                 v-model="response"
@@ -379,7 +377,7 @@ async function save() {
         </div>
         <UFormField
           v-else
-          label="Complete WireMock mapping (JSON)"
+          label="Complete WireMock.Net mapping (JSON)"
           name="raw"
           description="All WireMock fields are preserved. An existing mock’s ID stays the same."
         >

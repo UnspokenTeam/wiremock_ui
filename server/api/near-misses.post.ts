@@ -1,4 +1,4 @@
-import type { NearMiss, ServeEvent } from '#shared/types/wiremock'
+import { fromNetLog, type NetLogEntry, type NetMatchMetadata } from '#shared/utils/wiremock-net'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store')
@@ -15,13 +15,20 @@ export default defineEventHandler(async (event) => {
   const baseUrl = wiremockConnection(event).baseUrl
   const logged
     = historyStore(event).getRequest(baseUrl, body.requestId)
-      ?? (await wiremockFetch<ServeEvent>(
+      ?? fromNetLog(await wiremockFetch<NetLogEntry>(
         event,
         `/requests/${encodeURIComponent(body.requestId)}`
       ))
-  return wiremockFetch<{ nearMisses: NearMiss[] }>(
-    event,
-    '/near-misses/request',
-    { method: 'POST', body: logged.request }
-  )
+  // WireMock.Net records its closest mapping and engine score in each log.
+  // This also works after the upstream journal has been cleared.
+  const source = logged.wiremockNet as NetMatchMetadata | undefined
+  const mapping = logged.closestMapping ?? logged.stubMapping
+    ?? historyStore(event).readWorkspace(baseUrl, 1)?.mappings
+      .find(mapping => mapping.id === source?.PartialMappingGuid)
+  const score = source?.PartialRequestMatchResult?.AverageTotalScore
+  return {
+    nearMisses: mapping && typeof score === 'number'
+      ? [{ request: logged.request, stubMapping: mapping, matchResult: { distance: 1 - score } }]
+      : []
+  }
 })

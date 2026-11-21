@@ -2,6 +2,7 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { randomUUID } from 'node:crypto'
 import { setTimeout } from 'node:timers/promises'
+import { toNetMapping, fromNetLog, type NetLogEntry } from '../../shared/utils/wiremock-net.ts'
 import { duplicateMock } from '../../shared/utils/mocks.ts'
 import type { StubMapping, Workspace } from '../../shared/types/wiremock.ts'
 
@@ -49,11 +50,11 @@ test(
       const original = await fetch(`${primary}/__admin/mappings`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+        body: JSON.stringify(toNetMapping({
           ...mapping,
           name: 'Primary must stay unchanged',
           response: { status: 202, jsonBody: { source: 'primary' } }
-        })
+        }))
       })
       assert.equal(original.status, 201)
       const created = await fetch(`${app}/api/mappings`, {
@@ -166,9 +167,9 @@ test(
       for (const base of [primary, secondary]) {
         const journal = (await (
           await fetch(`${base}/__admin/requests`)
-        ).json()) as { requests: { id: string, request: { url: string } }[] }
+        ).json()) as NetLogEntry[]
         await Promise.all(
-          journal.requests
+          journal.map(entry => fromNetLog(entry))
             .filter(event => event.request.url.startsWith(path))
             .map(event =>
               fetch(`${base}/__admin/requests/${event.id}`, {

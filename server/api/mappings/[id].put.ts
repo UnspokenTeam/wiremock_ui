@@ -1,4 +1,4 @@
-import type { StubMapping } from '#shared/types/wiremock'
+import { fromNetMapping, toNetMapping, type NetMapping } from '#shared/utils/wiremock-net'
 
 export default defineEventHandler(async (event) => {
   setHeader(event, 'Cache-Control', 'no-store')
@@ -13,9 +13,9 @@ export default defineEventHandler(async (event) => {
   return withInstanceHistory(event, async (store, baseUrl) => {
     await wiremockFetch(event, `/mappings/${id}`, {
       method: 'PUT',
-      body: { ...mapping, id }
+      body: toNetMapping({ ...mapping, id })
     })
-    const saved = await wiremockFetch<StubMapping>(event, `/mappings/${id}`)
+    const saved = fromNetMapping(await wiremockFetch<NetMapping>(event, `/mappings/${id}`))
     store.rememberMapping(baseUrl, saved)
     return saved
   })

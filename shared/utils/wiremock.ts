@@ -11,6 +11,8 @@ export function routeUrl(pattern: RequestPattern): string {
     ?? pattern.urlPathTemplate
     ?? pattern.urlPattern
     ?? pattern.urlPathPattern
+    ?? (pattern.Path !== undefined ? JSON.stringify(pattern.Path) : undefined)
+    ?? (pattern.Url !== undefined ? JSON.stringify(pattern.Url) : undefined)
     ?? '(any URL)'
   )
 }
@@ -48,7 +50,7 @@ export function searchMappings(
 ): StubMapping[] {
   const terms = search.trim().toLowerCase().split(/\s+/).filter(Boolean)
   return mappings.filter((mapping) => {
-    if (method !== 'ALL' && mapping.request.method !== method) return false
+    if (method !== 'ALL' && !mapping.request.method?.split(', ').includes(method)) return false
     const text = [
       mappingName(mapping),
       mapping.id,
